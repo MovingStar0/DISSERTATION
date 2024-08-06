@@ -12,12 +12,7 @@ globals [
   max-turtles
   traffic-light-state  ; 红绿灯状态
   last-change-tick; 记录最后一次更变红绿灯的tick
-  ;p ;需要去对面的小人的概率
   car-light-state ;行车道红绿灯状态
-  waiting-people ;正在等待的人数
-  sum-wait-time ; 总等待时间
-  sum-wait-people ;总等待人数
-  avg-wait ;平均等待时间
 ]
 
 human-own [
@@ -28,6 +23,7 @@ human-own [
   dest ;希望的目的地 （过马路时）
   wait-time ;个人等待时间
   car-detected ;检测car存在？
+  jaywalk ;是否有jaywalk行为
 ]
 
 cars-own [
@@ -73,8 +69,6 @@ to setup
   ;车
   setup-cars
 
-  ; 监视
-  set sum-wait-time 0
 
 
   reset-ticks
@@ -119,27 +113,18 @@ end
 ;--------------------------person
 ; 创建小人并将其放置在步行道上
 to setup-people
-  create-human max-turtles [
-    set shape "person"
-    set size 4
-    let pos one-of [[-48 15] [-48 12] [48 -14] [48 -11]]
-    setxy item 0 pos item 1 pos
-    set stopped false
-    set intend "none"
-    ifelse random-float 1 < p [
-      ifelse random-float 1 < jaywalk-1 [
-        set color orange
-      ][
-        set color yellow
-      ]
-
-    ] [
-      set color blue
-    ]
-    if color = yellow or color = orange[
-      set stop-x random 18 + 11 ; 为黄色小人随机分配一个停止的x坐标
-    ]
-  ]
+  create-new-people
+;  create-human max-turtles [
+;    set shape "person"
+;    set size 4
+;    let pos one-of [[-48 15] [-48 12] [48 -14] [48 -11]]
+;    setxy item 0 pos item 1 pos
+;    set stopped false
+;    set intend "none"
+;    set color red
+;    set jaywalk false
+;    set stop-x random 18 + 11 ; 为小人随机分配一个停止的x坐标
+;  ]
 end
 
 ; 判断turtle是否在步行道上
@@ -271,7 +256,7 @@ to move-human-cross [people1]
       set intend "down"
       set dest one-of [-11 -14]
       set wait-time ticks - stop-tick
-      set sum-wait-time sum-wait-time + wait-time
+;      set sum-wait-time sum-wait-time + wait-time
     ]
 
     ;如果在下面
@@ -312,25 +297,77 @@ to move-human-cross [people1]
 
 end
 
+to create-new-people
+    ; 如果当前turtles数量少于max-turtles，则生成新的小人
+  while [count human < max-turtles] [
+    create-human 1 [
+      let pos one-of [[-48 15] [-48 12] [48 -14] [48 -11]]
+      setxy item 0 pos item 1 pos
+      set stopped false
+      set intend "none"
+      set shape "person"
+      set size 4
+      set color red
+      set jaywalk false
+      set stop-x random 18 + 11 ; 为小人随机分配一个停止的x坐标
+    ]
+  ]
+
+end
+
+to create-new-car
+    if count cars < total-vehicles[
+    ifelse random-float 1 < 0.5 [
+      create-car-in-position -48 5 90 cyan
+    ] [
+      create-car-in-position 48 -5 270 violet
+    ]
+  ]
+end
+
+to control-traffic-light
+   ; 判断是否需要切换红绿灯状态
+  if traffic-light-state = "red" [
+    if ticks >= last-change-tick + both-red-light-time
+    and car-light-state = "red"
+    and ticks < last-change-tick + red-light-time + both-red-light-time
+    [
+      toggle-car-lights
+    ]
+    if ticks >= last-change-tick + red-light-time + both-red-light-time[
+      if car-light-state = "green" [
+        toggle-car-lights
+      ]
+      if ticks >= last-change-tick + red-light-time + both-red-light-time + both-red-light-time[
+        toggle-traffic-lights
+      ]
+
+    ]
+  ]
+  if traffic-light-state = "green" [
+    if ticks >= last-change-tick + green-light-time  [
+      toggle-traffic-lights
+    ]
+  ]
+end
 
 
 to go
   ask human [
-    ifelse (color = yellow or color = orange) and stopped [
+    ifelse stopped [
       ;观察时间到，开始过马路
       if stopped and (ticks - stop-tick >= observation-time )[
 
         if traffic-light-state = "green" or not member? pycor [12 15 -11 -14] [
-
           ; move
           move-human-cross self
         ]
 
         ; 橙色小人 会闯红灯
-        if color = orange [
+        if color = red [
           ;观察
           let detected-cars cars in-cone 20 180 ;范围内没车就过
-          ;let detected-cars2 cars in-cone 30 180 ;范围内，速度小于x时，可以过
+
           ifelse any? detected-cars [
             set car-detected true
             if intend != "none" [
@@ -352,20 +389,33 @@ to go
         ifelse intend = "right" [set heading 90] [set heading 270]
       ]
       forward 1
+      if not jaywalk [
+        ; 转头并观察路况
+        if pycor < 0 and intend = "none" [
+          set heading 0
+          ifelse detected-safe? self [
+            show "car!"
+          ][
+            show "no car!"
+          ]
+        ]
+        if pycor > 0 and intend = "none" [
+          set heading 180
+          ifelse detected-safe? self [
+            show "car!"
+          ][
+            show "no car!"
+          ]
+        ]
+      ]
 
       ;该停了
-      if not stopped and abs(pxcor - stop-x) < 1 and (color = yellow or color = orange)[
+      if not stopped and abs(pxcor - stop-x) < 1 [
         set stopped true
         set stop-tick ticks
-
-        ; 橙色小人不能算在总等待人数中
-        ifelse color != orange [
-          set sum-wait-people sum-wait-people + 1
-        ][
-        ; 是橘色小人，要先转头，才能观察
-          if pycor < 0 and intend = "none" [set heading 0]
-          if pycor > 0 and intend = "none" [set heading 180]
-        ]
+        ; 转头并观察路况
+        if pycor < 0 and intend = "none" [set heading 0]
+        if pycor > 0 and intend = "none" [set heading 180]
       ]
     ]
     ; 检查turtle是否走出界面
@@ -427,8 +477,6 @@ to go
           set i i + 1
         ]
 
-
-
         ; 否则前进
         forward speed
       ]
@@ -440,77 +488,42 @@ to go
 
 
 ;----------控制人口
-  ; 如果当前turtles数量少于max-turtles，则生成新的小人
-  while [count human < max-turtles] [
-    create-human 1 [
-      let pos one-of [[-48 15] [-48 12] [48 -14] [48 -11]]
-      setxy item 0 pos item 1 pos
-      set stopped false
-      set intend "none"
-      set shape "person"
-      set size 4
-      ifelse random-float 1 < p [
-        ifelse random-float 1 < jaywalk-1 [
-        set color orange
-      ][
-        set color yellow
-      ]
-      ] [
-        set color blue
-      ]
-      if color = yellow or color = orange[
-      set stop-x random 18 + 11 ; 为黄色小人随机分配一个停止的x坐标
-    ]
+create-new-people
 
-    ]
-  ]
+;----------控制车辆数量
+create-new-car
 
-;----------------控制车辆数量
-  if count cars < total-vehicles[
-    ifelse random-float 1 < 0.5 [
-      create-car-in-position -48 5 90 cyan
-    ] [
-      create-car-in-position 48 -5 270 violet
-    ]
-  ]
-
-
-
-;-----------------红绿灯控制
- ; 判断是否需要切换红绿灯状态
-  if traffic-light-state = "red" [
-    if ticks >= last-change-tick + both-red-light-time
-    and car-light-state = "red"
-    and ticks < last-change-tick + red-light-time + both-red-light-time
-    [
-      toggle-car-lights
-    ]
-    if ticks >= last-change-tick + red-light-time + both-red-light-time[
-      if car-light-state = "green" [
-        toggle-car-lights
-      ]
-      if ticks >= last-change-tick + red-light-time + both-red-light-time + both-red-light-time[
-        toggle-traffic-lights
-      ]
-
-    ]
-  ]
-  if traffic-light-state = "green" [
-    if ticks >= last-change-tick + green-light-time  [
-      toggle-traffic-lights
-    ]
-  ]
+;----------红绿灯控制
+control-traffic-light
 
   ; 监视器和图
   ; 每帧计算当前等待人数
-  set waiting-people count human with [ color = yellow and intend = "none" and stopped ]
-  set sum-wait-time sum-wait-time + waiting-people
-  if sum-wait-people != 0 [set avg-wait sum-wait-time / sum-wait-people]
-
-
-
+;  set waiting-people count human with [ color = yellow and intend = "none" and stopped ]
+;  set sum-wait-time sum-wait-time + waiting-people
+;  if sum-wait-people != 0 [set avg-wait sum-wait-time / sum-wait-people]
 
   tick
+end
+
+to-report detected-safe? [human1]
+  let human-x [xcor] of human1
+  let human-y [ycor] of human1
+  let cars-in-range cars in-cone 20 180
+
+
+  let filtered-cars-in-range cars-in-range with [
+    (ifelse-value ([ycor] of self > 0)
+      [xcor <= human-x]
+      [xcor >= human-x])
+  ]
+
+
+  ifelse any? filtered-cars-in-range [
+    let closest-car min-one-of filtered-cars-in-range [distance human1]
+    report false
+  ][
+    report true
+  ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
@@ -583,7 +596,7 @@ red-light-time
 red-light-time
 1
 100
-49.0
+22.0
 1
 1
 NIL
@@ -598,23 +611,8 @@ green-light-time
 green-light-time
 1
 100
-50.0
+85.0
 1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-932
-570
-1104
-603
-P
-P
-0
-1
-0.3
-0.1
 1
 NIL
 HORIZONTAL
@@ -636,16 +634,16 @@ INPUTBOX
 354
 623
 total-vehicles
-10.0
+2.0
 1
 0
 Number
 
 SLIDER
-558
-632
-739
-665
+938
+571
+1119
+604
 both-red-light-time
 both-red-light-time
 1
@@ -657,45 +655,15 @@ NIL
 HORIZONTAL
 
 SLIDER
-22
-665
-194
-698
+1157
+571
+1329
+604
 observation-time
 observation-time
 1
 10
 3.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-930
-618
-1102
-651
-jaywalk-1
-jaywalk-1
-0
-1
-0.5
-0.1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-1165
-574
-1337
-607
-max-speed-car
-max-speed-car
-1
-20
-5.0
 1
 1
 NIL
