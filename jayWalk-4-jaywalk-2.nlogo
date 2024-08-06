@@ -1,5 +1,6 @@
 breed [human person]
 breed [cars car]
+breed [cones cone]
 
 
 
@@ -13,6 +14,9 @@ globals [
   traffic-light-state  ; 红绿灯状态
   last-change-tick; 记录最后一次更变红绿灯的tick
   car-light-state ;行车道红绿灯状态
+  hx;
+  hy;
+  filtered-cars-in-range ;需要注意到的车
 ]
 
 human-own [
@@ -24,6 +28,7 @@ human-own [
   wait-time ;个人等待时间
   car-detected ;检测car存在？
   jaywalk ;是否有jaywalk行为
+  cross-over? ;是否已经穿过马路了
 ]
 
 cars-own [
@@ -69,8 +74,6 @@ to setup
   ;车
   setup-cars
 
-
-
   reset-ticks
 end
 
@@ -114,17 +117,6 @@ end
 ; 创建小人并将其放置在步行道上
 to setup-people
   create-new-people
-;  create-human max-turtles [
-;    set shape "person"
-;    set size 4
-;    let pos one-of [[-48 15] [-48 12] [48 -14] [48 -11]]
-;    setxy item 0 pos item 1 pos
-;    set stopped false
-;    set intend "none"
-;    set color red
-;    set jaywalk false
-;    set stop-x random 18 + 11 ; 为小人随机分配一个停止的x坐标
-;  ]
 end
 
 ; 判断turtle是否在步行道上
@@ -205,7 +197,7 @@ to setup-cars
     ] [
 
       let pos one-of (patches with [pycor = -5])  ; 选择y坐标为5的车道
-      create-car-in-position [pxcor] of pos [pycor] of pos 270 violet
+      create-car-in-position [pxcor] of pos [pycor] of pos 270 cyan
     ]
   ]
 end
@@ -225,7 +217,7 @@ to create-car-in-position [x y head vcolor]
         set color vcolor
         setxy x y
         set heading head  ; 设置行驶方向
-        set speed 2 ;初始化速度
+        set speed random limit-speed-car + 1 ;初始化速度
         set car-stop? false
       ]
     ][
@@ -235,7 +227,7 @@ to create-car-in-position [x y head vcolor]
       set color vcolor
       setxy x y
       set heading head  ; 设置行驶方向
-      set speed 2 ;初始化速度
+      set speed random limit-speed-car + 1 ;初始化速度
       set car-stop? false
     ]
     ]
@@ -245,6 +237,7 @@ end
 
 ; 小人移动
 to move-human-cross [people1]
+  set filtered-cars-in-range 0
   ask people1 [
     if pycor < 0 and intend = "none" [
       set intend "up"
@@ -268,10 +261,14 @@ to move-human-cross [people1]
         ifelse random-float 1 < 0.5 [
           set heading 90; 右
           set stopped false
+          set jaywalk false
+          set cross-over? true
           set intend "right"
         ][
           set heading 270; 左
           set stopped false
+          set jaywalk false
+          set cross-over? true
           set intend "left"
         ]
       ]
@@ -285,23 +282,30 @@ to move-human-cross [people1]
         ifelse random-float 1 < 0.5 [
           set heading 90
           set stopped false
+          set jaywalk false
+          set cross-over? true
           set intend "right"
         ][
           set heading 270
           set stopped false
+          set jaywalk false
+          set cross-over? true
           set intend "left"
         ]
       ]
     ]
   ]
 
+  ;销毁视野范围
+  ask cones [die]
+
 end
 
 to create-new-people
+  let pos one-of [[-48 15] [-48 12] [48 -14] [48 -11]]
     ; 如果当前turtles数量少于max-turtles，则生成新的小人
   while [count human < max-turtles] [
     create-human 1 [
-      let pos one-of [[-48 15] [-48 12] [48 -14] [48 -11]]
       setxy item 0 pos item 1 pos
       set stopped false
       set intend "none"
@@ -309,18 +313,26 @@ to create-new-people
       set size 4
       set color red
       set jaywalk false
-      set stop-x random 18 + 11 ; 为小人随机分配一个停止的x坐标
+      set cross-over? false
+      set stop-x random 13 + 14 ; 为小人随机分配一个停止的x坐标
+    ]
+    create-cones 1 [
+      set size human-obsv-dis * 2
+      set shape "circle"
+      setxy item 0 pos item 1 pos
+      set color [0 255 0 60]
     ]
   ]
+
 
 end
 
 to create-new-car
     if count cars < total-vehicles[
     ifelse random-float 1 < 0.5 [
-      create-car-in-position -48 5 90 cyan
+      create-car-in-position -98 5 90 cyan
     ] [
-      create-car-in-position 48 -5 270 violet
+      create-car-in-position 98 -5 270 cyan
     ]
   ]
 end
@@ -352,72 +364,99 @@ to control-traffic-light
 end
 
 
-to go
-  ask human [
-    ifelse stopped [
-      ;观察时间到，开始过马路
-      if stopped and (ticks - stop-tick >= observation-time )[
 
+to go
+  let model-stop? false
+  ask human [
+    ;正常行走
+   ifelse not jaywalk [
+
+      ; 没stop才走, stop了就不走了
+      ifelse not stopped [
+        if pycor > 0 [
+          ifelse intend = "left" [set heading 270] [set heading 90]
+        ]
+        if pycor < 0 [
+          ifelse intend = "right" [set heading 90] [set heading 270]
+        ]
+        forward 1
+        let he [heading] of self
+        ask cones [
+          set heading he
+          forward 1
+        ]
+      ] [
+        ; 绿灯行
         if traffic-light-state = "green" or not member? pycor [12 15 -11 -14] [
-          ; move
           move-human-cross self
         ]
-
-        ; 橙色小人 会闯红灯
-        if color = red [
-          ;观察
-          let detected-cars cars in-cone 20 180 ;范围内没车就过
-
-          ifelse any? detected-cars [
-            set car-detected true
-            if intend != "none" [
-              move-human-cross self
-            ]
-          ][
-            set car-detected false
-            move-human-cross self
-          ]
-        ]
       ]
 
-    ][
-      ;正常行走
-      if pycor > 0 [
-        ifelse intend = "left" [set heading 270] [set heading 90]
-      ]
-      if pycor < 0 [
-        ifelse intend = "right" [set heading 90] [set heading 270]
-      ]
-      forward 1
-      if not jaywalk [
-        ; 转头并观察路况
+      if in-area? self [
+        ; 每次都要转头并观察路况
         if pycor < 0 and intend = "none" [
           set heading 0
           ifelse detected-safe? self [
-            show "car!"
+;            show "no go!"
           ][
-            show "no car!"
+;            show "go!"
+            set jaywalk true
+            set model-stop? true
           ]
         ]
+
         if pycor > 0 and intend = "none" [
           set heading 180
           ifelse detected-safe? self [
-            show "car!"
+;            show "no go!"
           ][
-            show "no car!"
+;            show "go!"
+            set jaywalk true
+            set model-stop? true
           ]
         ]
       ]
 
-      ;该停了
-      if not stopped and abs(pxcor - stop-x) < 1 [
+    ] [
+      ; 可以jaywalk
+      move-human-cross self
+    ]
+
+      ;到路口该停了
+      if not stopped and abs(pxcor - stop-x) < 1 and not cross-over?[
         set stopped true
         set stop-tick ticks
         ; 转头并观察路况
         if pycor < 0 and intend = "none" [set heading 0]
         if pycor > 0 and intend = "none" [set heading 180]
       ]
-    ]
+
+;    if stopped [
+;      ;观察时间到，开始过马路
+;      if stopped and (ticks - stop-tick >= observation-time )[
+;
+;        if traffic-light-state = "green" or not member? pycor [12 15 -11 -14] [
+;          ; move
+;          move-human-cross self
+;        ]
+;
+;        ; 会闯红灯
+;        if color = red [
+;          ;观察
+;          let detected-cars cars in-cone 20 180 ;范围内没车就过
+;
+;          ifelse any? detected-cars [
+;            set car-detected true
+;            if intend != "none" [
+;              move-human-cross self
+;            ]
+;          ][
+;            set car-detected false
+;            move-human-cross self
+;          ]
+;        ]
+;      ]
+;    ]
     ; 检查turtle是否走出界面
     if is-outside-world? [die]
   ]
@@ -427,7 +466,7 @@ to go
   ask cars [
     ; 停车
     ; 探测前方的颜色
-    let front-patch-ahead-2 patch-ahead 5
+    let front-patch-ahead-5 patch-ahead 5
     ; 探测前方的 turtle
     let turtles-ahead-10 (cars in-cone 10 30) with [self != myself]
     let turtles-ahead-8 (cars in-cone 8 30) with [self != myself]
@@ -442,8 +481,8 @@ to go
       stop
     ]
     if count turtles-ahead-10 = 0 [
-      ;如果10范围没有车, 速度升为2
-      set speed 2
+      ;如果10范围没有车, 速度升
+      set speed random limit-speed-car + 1
     ]
 
     ;碰撞
@@ -453,15 +492,16 @@ to go
     ; 如果检测到 people，则同时删除汽车和所有检测到的 people
     if any? detected-people [
       print "die!!"
-      ask detected-people [ die ]
-      die
+      set model-stop? true
+;      ask detected-people [ die ]
+;      die
     ]
 
     ; 条件检查
-    ifelse front-patch-ahead-2 = nobody [
+    ifelse front-patch-ahead-5 = nobody [
       forward speed
     ][
-      ifelse [pcolor] of front-patch-ahead-2 = red[
+      ifelse [pcolor] of front-patch-ahead-5 = red[
         stop
       ] [
         ;另外, 探测k范围内是否有红色
@@ -470,7 +510,6 @@ to go
           let a patch-ahead i
           if a != nobody [
             if [pcolor] of a = red [
-              print "you!"
               stop
             ]
           ]
@@ -496,22 +535,51 @@ create-new-car
 ;----------红绿灯控制
 control-traffic-light
 
-  ; 监视器和图
-  ; 每帧计算当前等待人数
-;  set waiting-people count human with [ color = yellow and intend = "none" and stopped ]
-;  set sum-wait-time sum-wait-time + waiting-people
-;  if sum-wait-people != 0 [set avg-wait sum-wait-time / sum-wait-people]
+;---修改车辆颜色
+  ifelse filtered-cars-in-range != 0 [
+    if any? filtered-cars-in-range [
+      ask filtered-cars-in-range [
+        set color [255 0 0 80]
+      ]
+      ask cars with [not member? self filtered-cars-in-range] [
+        set color cyan
+      ]
+    ]
+  ][
+    ask cars [
+        set color cyan
+      ]
+  ]
+
+
+
+  if model-stop? and jaywalk-stop-model [ stop ]
+
 
   tick
 end
 
+
+
+;---- 是否进入可以jaywalk的区域
+to-report in-area? [human1]
+  let human-x [xcor] of human1
+  ifelse human-x > -100 + human-obsv-dis and human-x < 100 - human-obsv-dis [
+    report true
+  ][
+    report false
+  ]
+end
+
+
+
+;---- jaywalk
 to-report detected-safe? [human1]
   let human-x [xcor] of human1
   let human-y [ycor] of human1
-  let cars-in-range cars in-cone 20 180
+  let cars-in-range cars in-cone human-obsv-dis 180
 
-
-  let filtered-cars-in-range cars-in-range with [
+  set filtered-cars-in-range cars-in-range with [
     (ifelse-value ([ycor] of self > 0)
       [xcor <= human-x]
       [xcor >= human-x])
@@ -519,17 +587,76 @@ to-report detected-safe? [human1]
 
 
   ifelse any? filtered-cars-in-range [
+
     let closest-car min-one-of filtered-cars-in-range [distance human1]
-    report false
-  ][
+;    show (word "car name: " [who] of closest-car)
+    let car-x [xcor] of closest-car
+    let car-y [ycor] of closest-car
+
+    let real-xp abs(car-x - human-x) ;人与车的横向距离
+    let real-vc [speed] of closest-car ;车的速度
+;    show (word "speed: " real-vc)
+
     report true
+  ][
+    report false
   ]
+
+
+;  let real-vc ;车的速度
+;  let real-dp ;人距离马路对面的距离
+;  let real-vp ;人过马路的速度
+
+
+;  ; 定义均值
+;  let mu_xp 0
+;  let mu_vc 0
+;  let mu_dp 0
+;  let mu_vp 0
+;
+;  ; 定义标准差
+;  let sigma_xp 2  ; 假设2米的误差
+;  let sigma_vc 5  ; 假设5公里/小时的误差
+;  let sigma_dp 2  ; 假设2米的误差
+;  let sigma_vp 0.5  ; 假设0.5公里/小时的误差
+;
+;  ; 生成误差
+;  let epsilon_xp random-normal 0 sigma_xp
+;  let epsilon_vc random-normal 0 sigma_vc
+;  let epsilon_dp random-normal 0 sigma_dp
+;  let epsilon_vp random-normal 0 sigma_vp
+;
+;  ; 计算目测值
+;  let x_p (real-xp + epsilon_xp)
+;  let v_c (real-vc + epsilon_vc)
+;  let d_p (real-dp + epsilon_dp)
+;  let v_p (real-vp + epsilon_vp)
+;
+;  ; 计算目测和真实的到达时间
+;  let t_c x_p / v_c
+;  let t_p d_p / v_p
+;  let real_tc real-xp / real-vc
+;  let real_tp real-dp / real-vp
+;
+;  ; 判断是否安全过马路
+;  if t_c > t_p [
+;    if real_tc > real_tp [
+;      show "safe to cross"
+;      report true
+;    ] else [
+;      show "accident risk"
+;      report false
+;    ]
+;  ] else [
+;    show "not safe to cross"
+;    report false
+;  ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
 18
 10
-1339
+2639
 552
 -1
 -1
@@ -543,21 +670,21 @@ GRAPHICS-WINDOW
 0
 0
 1
--50
-50
+-100
+100
 -20
 20
 0
 0
 1
 ticks
-30.0
+60.0
 
 BUTTON
-375
-570
-458
-603
+1018
+578
+1101
+611
 NIL
 setup
 NIL
@@ -571,10 +698,10 @@ NIL
 1
 
 BUTTON
-473
-570
-536
-603
+1019
+616
+1101
+649
 NIL
 go
 T
@@ -588,40 +715,40 @@ NIL
 1
 
 SLIDER
-557
-571
-729
-604
+1124
+577
+1296
+610
 red-light-time
 red-light-time
 1
 100
-22.0
+46.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-744
-571
-916
-604
+1123
+619
+1295
+652
 green-light-time
 green-light-time
 1
 100
-85.0
+46.0
 1
 1
 NIL
 HORIZONTAL
 
 INPUTBOX
-22
-563
-177
-623
+824
+581
+887
+641
 People
 1.0
 1
@@ -629,36 +756,36 @@ People
 Number
 
 INPUTBOX
-183
-563
-354
-623
+895
+581
+1000
+641
 total-vehicles
-2.0
+15.0
 1
 0
 Number
 
 SLIDER
-938
-571
-1119
-604
+1310
+576
+1491
+609
 both-red-light-time
 both-red-light-time
 1
 100
-40.0
+20.0
 1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-1157
-571
-1329
-604
+1309
+617
+1481
+650
 observation-time
 observation-time
 1
@@ -668,6 +795,47 @@ observation-time
 1
 NIL
 HORIZONTAL
+
+SLIDER
+1505
+577
+1677
+610
+limit-speed-car
+limit-speed-car
+1
+7
+4.0
+1
+1
+NIL
+HORIZONTAL
+
+SLIDER
+1512
+624
+1684
+657
+human-obsv-dis
+human-obsv-dis
+20
+60
+40.0
+1
+1
+NIL
+HORIZONTAL
+
+SWITCH
+881
+674
+1063
+707
+jaywalk-stop-model
+jaywalk-stop-model
+1
+1
+-1000
 
 @#$#@#$#@
 ## WHAT IS IT?
