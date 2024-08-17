@@ -15,6 +15,21 @@ globals [
   last-change-tick; 记录最后一次更变红绿灯的tick
   car-light-state ;行车道红绿灯状态
   filtered-cars-in-range ;需要注意到的车
+
+  type-jaywalk; 闯红灯的类型 : 无车闯红灯, 计算闯红灯, 斑马线闯红灯
+  total-cross-people ;总通过人数
+  total-die-people ;总死亡人数
+  die? ;用于实验
+  err-x ;距离误差
+  err-v ; 速度误差
+  err-t
+  rel-t
+  rel-tp
+  ;xp ;距离误差的标准差
+  ;vc ;速度误差的标准差
+  j-noInView
+  j-calc
+  j-sidewalk
 ]
 
 human-own [
@@ -26,16 +41,29 @@ human-own [
   car-detected ;检测car存在？
   jaywalk ;是否有jaywalk行为
   cross-over? ;是否已经穿过马路了
+  p-err-x ;人的距离误差
+  p-err-v ;人的速度误差
+  p-err-t
+  p-rel-t
+  p-rel-tp
 ]
 
 cars-own [
   speed ;速度
-  car-stop?
+  car-stop? ;是否停止
 
 ]
 
 to setup
   clear-all
+
+  set type-jaywalk "none"
+  set j-noInview 0
+  set j-calc 0
+  set j-sidewalk 0
+
+  ;设置总通过人数
+  set total-cross-people 0
 
   ;设置最大小人数
   set max-turtles people
@@ -74,8 +102,6 @@ to setup
   reset-ticks
 end
 
-;----------------------------------------------------------
-;----------------------------------------------------------
 ;绿化带
 to setup-green
   ask patches with [abs(pycor) <= 20 and abs(pycor) > (20 - green-height)] [
@@ -109,23 +135,19 @@ to setup-crosswalk
 end
 
 
-;----------------------------------------------------------
-;--------------------------person
+
 ; 创建小人并将其放置在步行道上
 to setup-people
   create-new-people
 end
 
-; 判断turtle是否在步行道上
-;to-report is-in-sidewalk?
-;  report abs(pycor) <= (20 - green-height) and abs(pycor) >= (20 - green-height - sidewalk-height)
-;end
+
 ; 判断turtle是否在世界边界之外
 to-report is-outside-world?
   report pxcor >= (max-pxcor - 1) or (pxcor < min-pxcor + 1)
 end
 
-;-----------------------------------------
+
 ; 初始化红绿灯
 to setup-traffic-lights
   set traffic-light-state "red"
@@ -260,12 +282,14 @@ to move-human-cross [people1]
           set stopped false
           set jaywalk false
           set cross-over? true
+          set type-jaywalk "none"
           set intend "right"
         ][
           set heading 270; 左
           set stopped false
           set jaywalk false
           set cross-over? true
+          set type-jaywalk "none"
           set intend "left"
         ]
       ]
@@ -281,12 +305,14 @@ to move-human-cross [people1]
           set stopped false
           set jaywalk false
           set cross-over? true
+          set type-jaywalk "none"
           set intend "right"
         ][
           set heading 270
           set stopped false
           set jaywalk false
           set cross-over? true
+          set type-jaywalk "none"
           set intend "left"
         ]
       ]
@@ -303,6 +329,7 @@ to create-new-people
     ; 如果当前turtles数量少于max-turtles，则生成新的小人
   while [count human < max-turtles] [
     create-human 1 [
+      set total-cross-people total-cross-people + 1
       setxy item 0 pos item 1 pos
       set stopped false
       set intend "none"
@@ -320,16 +347,14 @@ to create-new-people
       set color [0 255 0 60]
     ]
   ]
-
-
 end
 
 to create-new-car
     if count cars < total-vehicles[
     ifelse random-float 1 < 0.5 [
-      create-car-in-position -98 5 90 cyan
+      create-car-in-position -118 5 90 cyan
     ] [
-      create-car-in-position 98 -5 270 cyan
+      create-car-in-position 118 -5 270 cyan
     ]
   ]
 end
@@ -360,11 +385,22 @@ to control-traffic-light
   ]
 end
 
+;出现车祸 将内部数据转为全局数据
+to record-in-global [human1]
+  set err-x [p-err-x] of human1
+  set err-v [p-err-v] of human1
+  set err-t [p-err-t] of human1
+  set rel-t [p-rel-t] of human1
+  set rel-tp [p-rel-tp] of human1
+end
+
 
 
 to go
   let jaywalk-stop? false
   let collision-stop? false
+
+  set die? false
   ask human [
     ;正常行走
    ifelse not jaywalk [
@@ -378,6 +414,7 @@ to go
           ifelse intend = "right" [set heading 90] [set heading 270]
         ]
         forward 1
+
         let he [heading] of self
         ask cones [
           set heading he
@@ -386,9 +423,17 @@ to go
       ] [
         ; 只要行车道是红灯, 并且斑马线上没有车, 就直接走
         if not any? cars with [xcor >= 11 and xcor <= 29 and car-stop? = false] [
-          if car-light-state = "red" or not member? pycor [12 15 -11 -14] [
+          if car-light-state = "red"  [
+            set type-jaywalk "sidewalk"
             move-human-cross self
+
           ]
+        ]
+        ; 这种情况下, 不管有没有车, 已经开始走了就不能停
+        if not member? pycor [12 15 -11 -14] [
+          set type-jaywalk "sidewalk"
+          move-human-cross self
+
         ]
       ]
 
@@ -397,7 +442,6 @@ to go
         if pycor < 0 and intend = "none" [
           set heading 0
           ifelse detected-safe? self [
-            ;show "go!"
             set jaywalk true
             set jaywalk-stop? true
           ][
@@ -408,7 +452,6 @@ to go
         if pycor > 0 and intend = "none" [
           set heading 180
           ifelse detected-safe? self [
-            ;show "go!"
             set jaywalk true
             set jaywalk-stop? true
           ][
@@ -420,6 +463,7 @@ to go
     ] [
       ; 可以jaywalk
       move-human-cross self
+
     ]
 
       ;到路口该停了
@@ -431,39 +475,15 @@ to go
         if pycor > 0 and intend = "none" [set heading 180]
       ]
 
-;    if stopped [
-;      ;观察时间到，开始过马路
-;      if stopped and (ticks - stop-tick >= observation-time )[
-;
-;        if traffic-light-state = "green" or not member? pycor [12 15 -11 -14] [
-;          ; move
-;          move-human-cross self
-;        ]
-;
-;        ; 会闯红灯
-;        if color = red [
-;          ;观察
-;          let detected-cars cars in-cone 20 180 ;范围内没车就过
-;
-;          ifelse any? detected-cars [
-;            set car-detected true
-;            if intend != "none" [
-;              move-human-cross self
-;            ]
-;          ][
-;            set car-detected false
-;            move-human-cross self
-;          ]
-;        ]
-;      ]
-;    ]
     ; 检查turtle是否走出界面
     if is-outside-world? [die]
+
   ]
 
 
   ; 行车
   ask cars [
+
     ; 停车
     ; 探测前方的颜色
     let front-patch-ahead-5 patch-ahead 5
@@ -495,7 +515,23 @@ to go
 
     ; 如果检测到 people，则同时删除汽车和所有检测到的 people
     if any? detected-people [
-      print "die!!"
+;      print (word "die people detail: " [p-err-x] of detected-people "cecce" [p-err-v] of detected-people)
+
+      record-in-global detected-people
+
+      set total-die-people total-die-people + 1
+      print (word "die!!  type:  " type-jaywalk)
+      if type-jaywalk = "sidewalk" [
+        set j-sidewalk  j-sidewalk + 1
+      ]
+      if type-jaywalk = "noInView" [
+        set j-noInView  j-noInView  + 1
+      ]
+      if type-jaywalk = "calc jaywalk" [
+        set j-calc  j-calc + 1
+      ]
+
+      set die? true
       set collision-stop? true
       ; 如果想看车祸现场, 就注释下面两行
       ask detected-people [ die ]
@@ -529,6 +565,7 @@ to go
 
           ; 否则前进
           set car-stop? false
+
           forward speed
         ]
       ]
@@ -536,8 +573,6 @@ to go
 
     if is-outside-world? [ die ]
   ]
-
-
 
 
 ;----------控制人口
@@ -578,24 +613,11 @@ end
 ;---- 是否进入可以jaywalk的区域
 to-report in-area? [human1]
   let human-x [xcor] of human1
-  ifelse human-x > -100 + human-obsv-dis and human-x < 100 - human-obsv-dis [
+  ifelse human-x > -44 and human-x < 44 [
     report true
   ][
     report false
   ]
-end
-
-
-;---- 报告横穿马路时的各参数
-to report-param [x_p v_c epsilon_vc epsilon_xp t_c real_tc]
-  let x-dis x_p
-  let x-speed v_c
-  let er-speed epsilon_vc
-  let er-dis epsilon_xp
-  let x-t t_c
-  let real-time real_tc
-  show (word "gus dis: " x_p " gus speed: " v_c " error speed: " epsilon_vc " error dis: " epsilon_xp " gus time: " t_c " real time: " real_tc)
-
 end
 
 ;---- jaywalk
@@ -612,7 +634,7 @@ to-report detected-safe? [human1]
 
   ifelse any? filtered-cars-in-range [
 
-    let closest-car min-one-of filtered-cars-in-range [distance human1]
+    let closest-car min-one-of filtered-cars-in-range [abs (xcor - [xcor] of human1)]
 
     let car-x [xcor] of closest-car
     let car-y [ycor] of closest-car
@@ -635,10 +657,10 @@ to-report detected-safe? [human1]
       let real-p-t real-dp / real-vp ;人到达对面的时间
 
       ifelse real-v-t > real-p-t [
-        show (word "safe to cross " real-v-t ">" real-p-t)
+;        show (word "safe to cross " real-v-t ">" real-p-t)
+        set type-jaywalk "calc jaywalk"
         report true
       ] [
-        ;show (word "accident risk " real-v-t "<" real-p-t)
         report false
       ]
     ] [
@@ -649,58 +671,59 @@ to-report detected-safe? [human1]
       let mu_vc 0
 
       ; 定义标准差
-      let sigma_xp 2  ; 假设2米的误差
-      let sigma_vc 0.1  ; 假设2公里/小时的误差
-
-
+      let sigma_xp xp  ; 假设2米的误差
+      let sigma_vc vc  ; 假设2公里/小时的误差
 
       ; 生成误差
       let epsilon_xp random-normal 0 sigma_xp
       let epsilon_vc random-normal 0 sigma_vc
 
-
       ; 计算目测值
       let x_p (real-xp + epsilon_xp)
       let v_c (real-vc + epsilon_vc)
-
-
 
       ; 计算目测和真实的到达时间
       let t_c x_p / v_c ;车到达的时间
       let real_tc real-xp / real-vc ;真实车到达的时间
       let real_tp real-dp / real-vp ;真实人通过的时间
 
+      ;记录在人中
+      ask human1 [
+        set p-err-x epsilon_xp
+        set p-err-v epsilon_vc
+        set p-err-t t_c ;目测车到达时间
+        set p-rel-t real_tc ;真 车 时
+        set p-rel-tp real_tp ;人 时
+      ]
 
       ; 判断是否安全过马路
       ifelse t_c > real_tp [ ; 目测车到达的时间大于人通过的时间, 安全
         ifelse real_tc > real_tp [
-          show (word "gus safe " t_c ">" real_tp " and real safe to cross " real_tc ">" real_tp )
-          report-param x_p v_c epsilon_vc epsilon_xp t_c real_tc
+;          show (word "gus safe " t_c ">" real_tp " and real safe to cross " real_tc ">" real_tp )
+          set type-jaywalk "calc jaywalk"
           report true
         ] [
+          ;重点 可能发生意外
           show (word "maybe safe to cross " t_c ">" real_tp )
-          report-param x_p v_c epsilon_vc epsilon_xp t_c real_tc
+          set type-jaywalk "calc jaywalk"
           report true
         ]
-
-
-
       ] [
 ;        show (word "not safe to cross " t_c "<" real_tp )
-;        report-param x_p v_c epsilon_vc epsilon_xp
         report false
       ]
     ]
   ][
-    show (word "no cars, safe to cross ")
+;    show (word "no car in view")
+    set type-jaywalk "noInView" ;记录闯红灯类型
     report true
   ]
 end
 @#$#@#$#@
 GRAPHICS-WINDOW
-18
+19
 10
-2639
+3160
 552
 -1
 -1
@@ -714,8 +737,8 @@ GRAPHICS-WINDOW
 0
 0
 1
--100
-100
+-120
+120
 -20
 20
 0
@@ -811,10 +834,10 @@ total-vehicles
 Number
 
 SLIDER
-1310
-576
-1491
-609
+1197
+665
+1378
+698
 both-red-light-time
 both-red-light-time
 1
@@ -826,25 +849,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-1309
-617
-1481
-650
-observation-time
-observation-time
-1
-10
-3.0
-1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-1505
-577
-1677
-610
+1311
+576
+1483
+609
 limit-speed-car
 limit-speed-car
 1
@@ -856,25 +864,25 @@ NIL
 HORIZONTAL
 
 SLIDER
-1512
-624
-1684
-657
+1318
+623
+1490
+656
 human-obsv-dis
 human-obsv-dis
 20
-60
-40.0
+120
+20.0
 1
 1
 NIL
 HORIZONTAL
 
 SWITCH
-1709
-571
-1891
-604
+1515
+570
+1697
+603
 jaywalk-stop-model
 jaywalk-stop-model
 1
@@ -882,10 +890,10 @@ jaywalk-stop-model
 -1000
 
 SWITCH
-1706
-616
-1902
-649
+1512
+615
+1708
+648
 collision-stop-model
 collision-stop-model
 1
@@ -893,15 +901,59 @@ collision-stop-model
 -1000
 
 SWITCH
-1979
-584
-2191
-617
+1390
+666
+1602
+699
 deviation?
 deviation?
 0
 1
 -1000
+
+MONITOR
+1734
+566
+1872
+611
+total cross people
+total-cross-people
+17
+1
+11
+
+MONITOR
+1735
+627
+1859
+672
+total die people
+total-die-people
+17
+1
+11
+
+INPUTBOX
+821
+651
+879
+711
+xp
+2.0
+1
+0
+Number
+
+INPUTBOX
+896
+649
+959
+709
+vc
+0.1
+1
+0
+Number
 
 @#$#@#$#@
 ## WHAT IS IT?
@@ -1259,6 +1311,86 @@ NetLogo 6.4.0
 @#$#@#$#@
 @#$#@#$#@
 @#$#@#$#@
+<experiments>
+  <experiment name="experiment-obs" repetitions="1" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <exitCondition>total-cross-people &gt;= 500</exitCondition>
+    <metric>j-sidewalk</metric>
+    <metric>j-noInView</metric>
+    <metric>j-calc</metric>
+    <runMetricsCondition>total-cross-people = 500</runMetricsCondition>
+    <enumeratedValueSet variable="deviation?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="both-red-light-time">
+      <value value="20"/>
+    </enumeratedValueSet>
+    <steppedValueSet variable="human-obsv-dis" first="20" step="1" last="60"/>
+    <enumeratedValueSet variable="red-light-time">
+      <value value="46"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="collision-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="total-vehicles">
+      <value value="15"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="People">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="limit-speed-car">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="jaywalk-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="green-light-time">
+      <value value="46"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="experiment1" repetitions="1" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <exitCondition>total-cross-people &gt;= 500</exitCondition>
+    <metric>type-jaywalk</metric>
+    <runMetricsCondition>die? = true</runMetricsCondition>
+    <enumeratedValueSet variable="deviation?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="both-red-light-time">
+      <value value="20"/>
+    </enumeratedValueSet>
+    <steppedValueSet variable="human-obsv-dis" first="20" step="5" last="60"/>
+    <enumeratedValueSet variable="red-light-time">
+      <value value="46"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="collision-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="total-vehicles">
+      <value value="15"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="People">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="xp">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="vc">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="limit-speed-car">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="jaywalk-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="green-light-time">
+      <value value="46"/>
+    </enumeratedValueSet>
+  </experiment>
+</experiments>
 @#$#@#$#@
 @#$#@#$#@
 default
