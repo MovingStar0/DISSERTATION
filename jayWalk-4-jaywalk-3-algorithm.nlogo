@@ -510,7 +510,7 @@ to go
     ]
 
     ;碰撞
-    ; 实时检测前方1格位置，范围为90度
+    ; 实时检测前方3格位置，范围为90度
     let detected-people human in-cone 3 90
 
     ; 如果检测到 people，则同时删除汽车和所有检测到的 people
@@ -790,7 +790,7 @@ red-light-time
 red-light-time
 1
 100
-46.0
+45.0
 1
 1
 NIL
@@ -805,7 +805,7 @@ green-light-time
 green-light-time
 1
 100
-46.0
+45.0
 1
 1
 NIL
@@ -856,8 +856,8 @@ SLIDER
 limit-speed-car
 limit-speed-car
 1
-7
-5.0
+8
+8.0
 1
 1
 NIL
@@ -872,7 +872,7 @@ human-obsv-dis
 human-obsv-dis
 20
 120
-20.0
+60.0
 1
 1
 NIL
@@ -1315,18 +1315,18 @@ NetLogo 6.4.0
   <experiment name="experiment-obs" repetitions="1" runMetricsEveryStep="false">
     <setup>setup</setup>
     <go>go</go>
-    <exitCondition>total-cross-people &gt;= 500</exitCondition>
+    <exitCondition>total-cross-people &gt;= 1000</exitCondition>
     <metric>j-sidewalk</metric>
     <metric>j-noInView</metric>
     <metric>j-calc</metric>
-    <runMetricsCondition>total-cross-people = 500</runMetricsCondition>
+    <runMetricsCondition>total-cross-people = 1000</runMetricsCondition>
     <enumeratedValueSet variable="deviation?">
       <value value="true"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="both-red-light-time">
       <value value="20"/>
     </enumeratedValueSet>
-    <steppedValueSet variable="human-obsv-dis" first="20" step="1" last="60"/>
+    <steppedValueSet variable="human-obsv-dis" first="20" step="1" last="120"/>
     <enumeratedValueSet variable="red-light-time">
       <value value="46"/>
     </enumeratedValueSet>
@@ -1349,30 +1349,32 @@ NetLogo 6.4.0
       <value value="46"/>
     </enumeratedValueSet>
   </experiment>
-  <experiment name="experiment1" repetitions="1" runMetricsEveryStep="false">
+  <experiment name="experiment-redlight" repetitions="1" runMetricsEveryStep="false">
     <setup>setup</setup>
     <go>go</go>
-    <exitCondition>total-cross-people &gt;= 500</exitCondition>
-    <metric>type-jaywalk</metric>
-    <runMetricsCondition>die? = true</runMetricsCondition>
+    <exitCondition>total-cross-people &gt;= 1000</exitCondition>
+    <metric>j-sidewalk</metric>
+    <metric>j-noInView</metric>
+    <metric>j-calc</metric>
+    <runMetricsCondition>total-cross-people = 1000</runMetricsCondition>
     <enumeratedValueSet variable="deviation?">
       <value value="true"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="both-red-light-time">
       <value value="20"/>
     </enumeratedValueSet>
-    <steppedValueSet variable="human-obsv-dis" first="20" step="5" last="60"/>
-    <enumeratedValueSet variable="red-light-time">
-      <value value="46"/>
+    <enumeratedValueSet variable="human-obsv-dis">
+      <value value="60"/>
     </enumeratedValueSet>
+    <steppedValueSet variable="red-light-time" first="10" step="1" last="100"/>
     <enumeratedValueSet variable="collision-stop-model">
       <value value="false"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="total-vehicles">
       <value value="15"/>
     </enumeratedValueSet>
-    <enumeratedValueSet variable="People">
-      <value value="1"/>
+    <enumeratedValueSet variable="limit-speed-car">
+      <value value="5"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="xp">
       <value value="2"/>
@@ -1380,8 +1382,8 @@ NetLogo 6.4.0
     <enumeratedValueSet variable="vc">
       <value value="0.1"/>
     </enumeratedValueSet>
-    <enumeratedValueSet variable="limit-speed-car">
-      <value value="5"/>
+    <enumeratedValueSet variable="People">
+      <value value="1"/>
     </enumeratedValueSet>
     <enumeratedValueSet variable="jaywalk-stop-model">
       <value value="false"/>
@@ -1389,6 +1391,346 @@ NetLogo 6.4.0
     <enumeratedValueSet variable="green-light-time">
       <value value="46"/>
     </enumeratedValueSet>
+  </experiment>
+  <experiment name="experiment-err-xp" repetitions="1" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <exitCondition>total-cross-people &gt;= 1000</exitCondition>
+    <metric>j-sidewalk</metric>
+    <metric>j-noInView</metric>
+    <metric>j-calc</metric>
+    <runMetricsCondition>total-cross-people = 1000</runMetricsCondition>
+    <enumeratedValueSet variable="deviation?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="both-red-light-time">
+      <value value="20"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="human-obsv-dis">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="red-light-time">
+      <value value="45"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="collision-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="total-vehicles">
+      <value value="15"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="limit-speed-car">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <steppedValueSet variable="xp" first="0" step="0.1" last="5"/>
+    <enumeratedValueSet variable="vc">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="People">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="jaywalk-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="green-light-time">
+      <value value="46"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="experiment-err-vc" repetitions="1" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <exitCondition>total-cross-people &gt;= 1000</exitCondition>
+    <metric>j-sidewalk</metric>
+    <metric>j-noInView</metric>
+    <metric>j-calc</metric>
+    <runMetricsCondition>total-cross-people = 1000</runMetricsCondition>
+    <enumeratedValueSet variable="deviation?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="both-red-light-time">
+      <value value="20"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="human-obsv-dis">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="red-light-time">
+      <value value="45"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="collision-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="total-vehicles">
+      <value value="15"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="limit-speed-car">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="xp">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <steppedValueSet variable="vc" first="0" step="0.05" last="1.5"/>
+    <enumeratedValueSet variable="People">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="jaywalk-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="green-light-time">
+      <value value="46"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="experiment-greenlight" repetitions="1" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <exitCondition>total-cross-people &gt;= 1000</exitCondition>
+    <metric>j-sidewalk</metric>
+    <metric>j-noInView</metric>
+    <metric>j-calc</metric>
+    <runMetricsCondition>total-cross-people = 1000</runMetricsCondition>
+    <enumeratedValueSet variable="deviation?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="both-red-light-time">
+      <value value="20"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="human-obsv-dis">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="red-light-time">
+      <value value="45"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="collision-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="total-vehicles">
+      <value value="15"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="limit-speed-car">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="xp">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="vc">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="People">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="jaywalk-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <steppedValueSet variable="green-light-time" first="10" step="1" last="100"/>
+  </experiment>
+  <experiment name="experiment-speedlimit-2" repetitions="1" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <exitCondition>total-cross-people &gt;= 1000</exitCondition>
+    <metric>j-sidewalk</metric>
+    <metric>j-noInView</metric>
+    <metric>j-calc</metric>
+    <runMetricsCondition>total-cross-people = 1000</runMetricsCondition>
+    <enumeratedValueSet variable="deviation?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="both-red-light-time">
+      <value value="20"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="human-obsv-dis">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="red-light-time">
+      <value value="45"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="collision-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="total-vehicles">
+      <value value="15"/>
+    </enumeratedValueSet>
+    <steppedValueSet variable="limit-speed-car" first="1" step="1" last="20"/>
+    <enumeratedValueSet variable="xp">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="vc">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="People">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="jaywalk-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="green-light-time">
+      <value value="46"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="experiment-totalV" repetitions="1" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <exitCondition>total-cross-people &gt;= 1000</exitCondition>
+    <metric>j-sidewalk</metric>
+    <metric>j-noInView</metric>
+    <metric>j-calc</metric>
+    <runMetricsCondition>total-cross-people = 1000</runMetricsCondition>
+    <enumeratedValueSet variable="deviation?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="both-red-light-time">
+      <value value="20"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="human-obsv-dis">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="red-light-time">
+      <value value="45"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="collision-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <steppedValueSet variable="total-vehicles" first="0" step="1" last="30"/>
+    <enumeratedValueSet variable="limit-speed-car">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="xp">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="vc">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="People">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="jaywalk-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="green-light-time">
+      <value value="46"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="experiment-bothred" repetitions="1" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <exitCondition>total-cross-people &gt;= 1000</exitCondition>
+    <metric>j-sidewalk</metric>
+    <metric>j-noInView</metric>
+    <metric>j-calc</metric>
+    <runMetricsCondition>total-cross-people = 1000</runMetricsCondition>
+    <enumeratedValueSet variable="deviation?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <steppedValueSet variable="both-red-light-time" first="0" step="1" last="40"/>
+    <enumeratedValueSet variable="human-obsv-dis">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="red-light-time">
+      <value value="45"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="collision-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="total-vehicles">
+      <value value="15"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="limit-speed-car">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="xp">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="vc">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="People">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="jaywalk-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="green-light-time">
+      <value value="46"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="experiment-speedlimit-totalV" repetitions="1" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <exitCondition>total-cross-people &gt;= 1000</exitCondition>
+    <metric>j-sidewalk</metric>
+    <metric>j-noInView</metric>
+    <metric>j-calc</metric>
+    <runMetricsCondition>total-cross-people = 1000</runMetricsCondition>
+    <enumeratedValueSet variable="deviation?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="both-red-light-time">
+      <value value="20"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="human-obsv-dis">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="red-light-time">
+      <value value="45"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="collision-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <steppedValueSet variable="total-vehicles" first="1" step="5" last="31"/>
+    <steppedValueSet variable="limit-speed-car" first="1" step="1" last="8"/>
+    <enumeratedValueSet variable="xp">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="vc">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="People">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="jaywalk-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="green-light-time">
+      <value value="46"/>
+    </enumeratedValueSet>
+  </experiment>
+  <experiment name="experiment-redgreenlight" repetitions="1" runMetricsEveryStep="false">
+    <setup>setup</setup>
+    <go>go</go>
+    <exitCondition>total-cross-people &gt;= 1000</exitCondition>
+    <metric>j-sidewalk</metric>
+    <metric>j-noInView</metric>
+    <metric>j-calc</metric>
+    <runMetricsCondition>total-cross-people = 1000</runMetricsCondition>
+    <enumeratedValueSet variable="deviation?">
+      <value value="true"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="both-red-light-time">
+      <value value="20"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="human-obsv-dis">
+      <value value="60"/>
+    </enumeratedValueSet>
+    <steppedValueSet variable="red-light-time" first="10" step="5" last="100"/>
+    <enumeratedValueSet variable="collision-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="total-vehicles">
+      <value value="15"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="limit-speed-car">
+      <value value="5"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="xp">
+      <value value="2"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="vc">
+      <value value="0.1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="People">
+      <value value="1"/>
+    </enumeratedValueSet>
+    <enumeratedValueSet variable="jaywalk-stop-model">
+      <value value="false"/>
+    </enumeratedValueSet>
+    <steppedValueSet variable="green-light-time" first="10" step="5" last="100"/>
   </experiment>
 </experiments>
 @#$#@#$#@
